@@ -116,7 +116,7 @@ volumes or ranking data — "target_search_queries" should only contain realisti
 text, platforms, and intent, not fabricated metrics. Any service or audience detail not \
 directly present in the extracted content must be marked, where the schema allows it, \
 as inferred.
-
+{thin_content_warning}
 Website URL: {url}
 Page title: {title}
 Meta description: {meta_description}
@@ -128,19 +128,35 @@ Extracted page text (truncated):
 
 Produce the structured analysis now."""
 
+_THIN_CONTENT_WARNING = (
+    "\nIMPORTANT: The page's actual body text could not be read in full (common for "
+    "JS-rendered pages, login walls, or social media profiles served to a non-browser "
+    "request) — the content above is limited to the page's title and meta description "
+    "only. Be noticeably more conservative: mark more fields as inferred where the "
+    "schema allows it, and keep the competitor_analysis.note explicit about this "
+    "limited basis rather than presenting the analysis with the same confidence as a "
+    "fully-read page.\n"
+)
+
 
 class LLMServiceError(Exception):
     """Raised when the LLM call fails or returns an unusable response."""
 
 
 async def analyze_with_gemini(
-    client: httpx.AsyncClient, url: str, title: str, meta_description: str, text: str
+    client: httpx.AsyncClient, url: str, title: str, meta_description: str, text: str, is_thin_content: bool = False
 ) -> tuple[dict, dict]:
     """Returns (parsed_json, usage_metadata). Raises LLMServiceError on failure."""
     if not settings.gemini_api_key:
         raise LLMServiceError("Not configured: GEMINI_API_KEY is required")
 
-    prompt = _PROMPT_TEMPLATE.format(url=url, title=title or "(none)", meta_description=meta_description or "(none)", text=text)
+    prompt = _PROMPT_TEMPLATE.format(
+        url=url,
+        title=title or "(none)",
+        meta_description=meta_description or "(none)",
+        text=text,
+        thin_content_warning=_THIN_CONTENT_WARNING if is_thin_content else "",
+    )
 
     endpoint = f"https://generativelanguage.googleapis.com/v1beta/models/{settings.gemini_model}:generateContent"
     payload = {

@@ -50,6 +50,19 @@ async def test_successful_structured_response(client):
     assert usage["promptTokenCount"] == 500
 
 
+@respx.mock
+async def test_thin_content_flag_adds_warning_to_prompt(client):
+    import json as _json
+
+    route = respx.post(ENDPOINT).mock(
+        return_value=httpx.Response(200, json={"candidates": [{"content": {"parts": [{"text": _json.dumps(_VALID_BODY)}]}}]})
+    )
+    await analyze_with_gemini(client, "https://example.com", "T", "A real bio", "A real bio", is_thin_content=True)
+    sent_body = _json.loads(route.calls.last.request.content)
+    prompt = sent_body["contents"][0]["parts"][0]["text"]
+    assert "could not be read in full" in prompt
+
+
 async def test_missing_api_key_is_not_configured(client, monkeypatch):
     monkeypatch.setattr(settings, "gemini_api_key", None)
     with pytest.raises(LLMServiceError, match="Not configured"):

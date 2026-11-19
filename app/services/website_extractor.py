@@ -14,13 +14,42 @@ from app.config import settings
 
 _NOISE_TAGS = ("script", "style", "noscript", "svg", "nav", "footer", "header", "form", "iframe")
 
+#: Below this many characters of real body text, a page is treated as "thin" —
+#: real-world finding: JS-rendered/login-walled pages (social media profiles are
+#: the common case) often return a near-empty body (e.g. just "Log In Sign Up")
+#: to a plain HTTP GET, even though the page itself has real, visible content for
+#: a browser. Below this threshold, og:/twitter: meta tags are preferred as the
+#: primary content signal instead, and the LLM is told explicitly that content was
+#: limited so it doesn't imply confidence the extraction doesn't actually have.
+_THIN_CONTENT_THRESHOLD = 60
+
 
 class WebsiteExtractionError(Exception):
     """Raised when the website can't be fetched or contains no usable content."""
 
 
 class ExtractedWebsite(dict):
-    """Lightweight structured result: title, meta_description, text."""
+    """Lightweight structured result: title, meta_description, text, is_thin_content."""
+
+
+def _best_meta_description(soup: BeautifulSoup) -> str:
+    """Prefers whichever of description / og:description / twitter:description is
+    longest and non-trivial — real pages (notably social-media profiles) often put
+    the actually-useful bio/summary text in og:description or twitter:description
+    rather than the plain <meta name="description"> tag, or split it across both
+    with one of them being a bare tracking link (observed directly on x.com)."""
+    candidates = []
+    for selector in (
+        {"name": "description"},
+        {"property": "og:description"},
+        {"name": "twitter:description"},
+    ):
+        tag = soup.find("meta", attrs=selector)
+        if tag and tag.get("content"):
+            candidates.append(tag["content"].strip())
+    # A bare URL (e.g. a t.co tracking link, observed on x.com) isn't real content.
+    candidates = [c for c in candidates if c and not c.lower().startswith(("http://", "https://"))]
+    return max(candidates, key=len, default="")
 
 
 async def fetch_and_extract(client: httpx.AsyncClient, url: str) -> ExtractedWebsite:
@@ -49,17 +78,26 @@ async def fetch_and_extract(client: httpx.AsyncClient, url: str) -> ExtractedWeb
         tag.decompose()
 
     title = soup.title.string.strip() if soup.title and soup.title.string else ""
-
-    meta_description = ""
-    meta_tag = soup.find("meta", attrs={"name": "description"})
-    if meta_tag and meta_tag.get("content"):
-        meta_description = meta_tag["content"].strip()
+    meta_description = _best_meta_description(soup)
 
     body = soup.body or soup
     raw_text = body.get_text(separator=" ", strip=True)
     text = " ".join(raw_text.split())[: settings.max_extracted_chars]
 
-    if not text and not title:
+    if not text and not title and not meta_description:
         raise WebsiteExtractionError("Website returned no readable text content")
 
-    return ExtractedWebsite(title=title, meta_description=meta_description, text=text, final_url=str(resp.url))
+    is_thin_content = len(text) < _THIN_CONTENT_THRESHOLD
+    if is_thin_content and meta_description:
+        # The body text is near-empty (common for JS-rendered/login-walled pages —
+        # see the module docstring) but a real meta description exists; use it as
+        # the primary content instead of the near-empty body text.
+        text = meta_description
+
+    return ExtractedWebsite(
+        title=title,
+        meta_description=meta_description,
+        text=text,
+        final_url=str(resp.url),
+        is_thin_content=is_thin_content,
+    )

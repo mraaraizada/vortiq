@@ -26,7 +26,12 @@ async def analyze_website(url: str) -> LinkAnalysisResponse:
 
         try:
             raw, _usage = await analyze_with_gemini(
-                client, url, extracted["title"], extracted["meta_description"], extracted["text"]
+                client,
+                url,
+                extracted["title"],
+                extracted["meta_description"],
+                extracted["text"],
+                is_thin_content=extracted.get("is_thin_content", False),
             )
         except LLMServiceError as exc:
             return LinkAnalysisResponse(success=False, website=url, error=str(exc))

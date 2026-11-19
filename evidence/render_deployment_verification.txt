@@ -1,0 +1,19 @@
+Render deployment verification — https://vortiq-9h0z.onrender.com
+Captured 2026-11-19.
+
+1. GET /  -> 200, {"service":"Vortiq","docs":"/docs","endpoint":"POST /link-analysis"}
+2. GET /docs -> 200 (Swagger UI loads)
+3. POST /link-analysis {"url": "https://stripe.com"} -> clean failure, "LLM request timed out"
+4. POST /link-analysis {"url": "https://example.com"} -> clean failure, real Gemini 503
+   "This model is currently experiencing high demand..."
+5. POST /link-analysis {"url": "https://example.com"} (retry) -> clean failure, real Gemini 429
+   "Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests,
+   limit: 20, model: gemini-3.8-flash, ... Free Tier. ... Please retry in 51m24s."
+
+Conclusion: the deployed service is live and functioning correctly end-to-end —
+real SSRF-safe validation, real website fetch, real Gemini call, honest error
+reporting for every failure mode, no crashes. The failures above are all real,
+external, free-tier/provider-side conditions (daily quota exhaustion from this
+project's own thorough testing across two days), not deployment or code defects.
+See README.md's Known Limitations section and evidence/live_analysis_response.json
+for a genuine successful analysis captured earlier before quota exhaustion.

@@ -71,6 +71,40 @@ async def test_thin_body_content_falls_back_to_meta_description(client):
 
 
 @respx.mock
+async def test_redirect_to_login_page_is_a_real_failure_not_mislabeled_success(client):
+    # Real finding (facebook.com/nike): a plain GET gets redirected to a login
+    # wall, and the login page's OWN content ("Connect with friends...") would
+    # otherwise get analyzed as if it were the requested brand's real content —
+    # a correctness bug, not just thin content. Must be a reported failure instead.
+    target = "https://www.facebook.com/nike"
+    login_url = "https://www.facebook.com/login/?next=https%3A%2F%2Fwww.facebook.com%2Fnike"
+    respx.get(target).mock(return_value=httpx.Response(302, headers={"location": login_url}))
+    respx.get(login_url).mock(
+        return_value=httpx.Response(
+            200,
+            headers={"content-type": "text/html"},
+            text="<html><head><title>Facebook - Log In or Sign Up</title></head><body>Connect with friends.</body></html>",
+        )
+    )
+    with pytest.raises(WebsiteExtractionError, match="login/auth page"):
+        await fetch_and_extract(client, target)
+
+
+@respx.mock
+async def test_redirect_within_same_site_is_not_treated_as_a_login_wall(client):
+    # A normal same-site redirect (e.g. http -> https, or a trailing-slash
+    # normalization) must NOT be mistaken for a login-wall redirect.
+    respx.get("https://example.com/page").mock(
+        return_value=httpx.Response(301, headers={"location": "https://example.com/page/"})
+    )
+    respx.get("https://example.com/page/").mock(
+        return_value=httpx.Response(200, headers={"content-type": "text/html"}, text="<html><body>Real content here, nothing to do with login.</body></html>")
+    )
+    result = await fetch_and_extract(client, "https://example.com/page")
+    assert "Real content" in result["text"]
+
+
+@respx.mock
 async def test_http_error_status_is_a_real_failure(client):
     respx.get(URL).mock(return_value=httpx.Response(404))
     with pytest.raises(WebsiteExtractionError, match="404"):

@@ -7,12 +7,23 @@ project's main documented cost-optimization lever (see docs/llm_research.md).
 """
 from __future__ import annotations
 
+from urllib.parse import urlparse
+
 import httpx
 from bs4 import BeautifulSoup
 
 from app.config import settings
 
 _NOISE_TAGS = ("script", "style", "noscript", "svg", "nav", "footer", "header", "form", "iframe")
+
+#: Real finding (facebook.com/nike): a plain HTTP GET gets redirected to a login
+#: page, and httpx's follow_redirects silently lands there — the login page's OWN
+#: content (e.g. "Connect with friends, family...") then gets analyzed as if it
+#: were the requested brand's real content, which is a real correctness bug, not
+#: just thin content. Detected by checking whether the final URL's path, after
+#: following redirects, contains one of these markers while the originally
+#: requested URL's path did not.
+_LOGIN_WALL_MARKERS = ("login", "signin", "sign-in", "authwall", "checkpoint", "accounts/login")
 
 #: Below this many characters of real body text, a page is treated as "thin" —
 #: real-world finding: JS-rendered/login-walled pages (social media profiles are
@@ -66,6 +77,14 @@ async def fetch_and_extract(client: httpx.AsyncClient, url: str) -> ExtractedWeb
 
     if resp.status_code >= 400:
         raise WebsiteExtractionError(f"Website returned HTTP {resp.status_code}")
+
+    original_path = urlparse(url).path.lower()
+    final_path = urlparse(str(resp.url)).path.lower()
+    if final_path != original_path and any(marker in final_path for marker in _LOGIN_WALL_MARKERS):
+        raise WebsiteExtractionError(
+            f"Website redirected to a login/auth page ({resp.url}) instead of the requested content — "
+            "cannot analyze a login page as if it were the requested site's real content"
+        )
 
     content_type = resp.headers.get("content-type", "")
     if "html" not in content_type and content_type:

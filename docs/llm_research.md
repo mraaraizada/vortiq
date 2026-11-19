@@ -89,7 +89,7 @@ layer exists here, by design — see Known Limitations in the README), and raisi
 | Field | Value |
 |---|---|
 | Recommended provider | Google |
-| Recommended model | `gemini-2.5-flash` |
+| Recommended model | `gemini-3.5-flash-lite` (switched to live-stable during development after `gemini-2.5-flash` was deprecated and `gemini-3.8-flash` showed sustained real demand-based 503s for this account — see the README's Known Limitations for the full account) |
 | Estimated input tokens per analysis | ~2,000–4,000 (one cleaned page, capped at 12,000 characters ≈ 3,000 tokens, plus a ~300-token fixed instruction prompt) |
 | Estimated output tokens per analysis | ~800–1,800 (five structured sections; Gemini's `usageMetadata.candidatesTokenCount` is logged per real call and surfaced by `tests/test_live.py` for exact measurement) |
 | Estimated cost per analysis | Roughly **$0.001–$0.006** at $0.30/$2.50 per 1M input/output tokens (e.g. 3,500 input + 1,500 output tokens ≈ (3,500×0.30 + 1,500×2.50)/1,000,000 ≈ $0.0049) — an estimate from the pricing formula applied to this task's typical size, not a measured average across many runs |

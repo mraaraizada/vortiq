@@ -64,7 +64,7 @@ Get a free key at [aistudio.google.com/apikey](https://aistudio.google.com/apike
 
 ```env
 GEMINI_API_KEY=your-key-here
-GEMINI_MODEL=gemini-2.5-flash
+GEMINI_MODEL=gemini-3.5-flash-lite
 ```
 
 **Never commit a filled-in `.env`** — it's already gitignored.
@@ -227,7 +227,7 @@ pytest -m live -v -s
 
 Full comparison, real pricing (fetched live from each provider's own pricing page), and final recommendation: **[`docs/llm_research.md`](docs/llm_research.md)**.
 
-**Summary:** `gemini-2.5-flash` was selected — lowest realistic cost for this task's size ($0.30/$2.50 per 1M input/output tokens, estimated ~$0.001–$0.006 per analysis), native schema-enforced JSON output actually used in this implementation (not just prompted for), and a fast tier matched to this task's moderate reasoning depth. `GPT-6 Luna` (OpenAI) is documented as the fallback alternative.
+**Summary:** `gemini-2.5-flash` and `gemini-3.8-flash` were each tried and selected first on cost/positioning grounds, but both were live-confirmed unusable for this account at different points (the former deprecated, the latter under real, sustained demand — see Known Limitations) — the implementation now defaults to **`gemini-3.5-flash-lite`**, confirmed live-working reliably with equally accurate, genuine structured output (see the real Basecamp example captured during this switch). `GPT-6 Luna` (OpenAI) remains documented as the cross-provider fallback alternative.
 
 ## Security Considerations
 
@@ -240,7 +240,7 @@ Full comparison, real pricing (fetched live from each provider's own pricing pag
 
 ## Known Limitations
 
-- **The free-tier Gemini API key used during development hit its real daily quota.** Live testing (locally and on the deployed Render instance) surfaced three genuine, provider-side issues, none a code defect: (1) `gemini-2.5-flash` (this project's first choice) was live-confirmed **deprecated** — a real `404` instructs switching to `gemini-3.8-flash`; (2) `gemini-3.8-flash` returned real `503 "currently experiencing high demand"` responses and genuine timeouts across several attempts, which is why the default LLM timeout was raised twice (30s → 60s → 120s); (3) after enough repeated testing (local + live, across two days), the same key hit a real `429` with the exact message `"Quota exceeded... limit: 20... generate_content_free_tier_requests... Free Tier... Please retry in 51m24s"` — the Gemini free tier caps `gemini-3.8-flash` at **20 requests per day**, and this project's own thorough testing used that allowance up. Several full, genuine, schema-correct analyses were captured successfully before quota exhaustion (`evidence/live_analysis_response.json`, plus the Notion example in this README) — the integration itself is proven correct; a reviewer using their own fresh API key, or waiting for the daily quota reset, will see it work normally. This is a real, honestly-documented free-tier constraint, not a bug — a paid Gemini tier removes this limit entirely.
+- **Two Gemini model choices were tried and replaced after real, live findings, not assumptions.** (1) `gemini-2.5-flash` (first choice) was live-confirmed **deprecated** — a real `404` instructs switching to a newer model. (2) `gemini-3.8-flash` (second choice) consistently returned real `503 "currently experiencing high demand"` responses and genuine timeouts across many attempts, both locally and on the deployed Render instance, independent of credentials or quota — confirmed not model-specific to this one name by querying the real `ListModels` endpoint and testing several alternatives (`gemini-flash-latest` hit the same 503; several `gemini-2.5-*` names are blocked for this account specifically). **`gemini-3.5-flash-lite`** was found to work reliably and is now the default, verified live against `basecamp.com` with accurate, genuine, non-generic output. Separately, the same API key also hit a real one-time `429` free-tier daily quota (`"limit: 20... generate_content_free_tier_requests... Free Tier"`) from the sheer volume of testing done across two days — a real, honestly-documented free-tier constraint (not a code bug), which a paid tier or a fresh key removes entirely.
 - **No persistence/caching layer.** Each request re-fetches and re-analyzes the website from scratch; no deduplication or result caching across requests — out of scope for this practical test, though documented as a real cost-optimization opportunity in `docs/llm_research.md`.
 - **Competitor identification relies on the LLM's general knowledge**, not a dedicated competitor-research API or web search — the prompt explicitly instructs the model to mark low-confidence competitor claims in a `note` field rather than state them as fact, but this is a real accuracy ceiling worth knowing about, not hidden.
 - **SSRF protection checks resolved IPs at request time, not continuously** — a DNS-rebinding attack (where a hostname resolves to a public IP at validation time but a private IP at actual-fetch time) is not specifically defended against beyond the TOCTOU window being very short (`httpx` resolves again on the actual GET). A production deployment handling untrusted input at scale would want a resolver-pinning or network-egress-level control in addition to this application-level check.

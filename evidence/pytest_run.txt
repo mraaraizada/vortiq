@@ -1,0 +1,51 @@
+C:\Users\raiza\OneDrive\Documents\GitHub\Vortiq\.venv\Lib\site-packages\pytest_asyncio\plugin.py:207: PytestDeprecationWarning: The configuration option "asyncio_default_fixture_loop_scope" is unset.
+The event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: "function", "class", "module", "package", "session"
+
+  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))
+============================= test session starts =============================
+platform win32 -- Python 3.11.9, pytest-8.3.4, pluggy-1.7.0 -- C:\Users\raiza\OneDrive\Documents\GitHub\Vortiq\.venv\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\raiza\OneDrive\Documents\GitHub\Vortiq
+configfile: pytest.ini
+plugins: anyio-4.16.0, asyncio-0.25.2, respx-0.22.0
+asyncio: mode=Mode.AUTO, asyncio_default_fixture_loop_scope=None
+collecting ... collected 31 items / 1 deselected / 30 selected
+
+tests/test_link_analysis.py::test_full_pipeline_success PASSED           [  3%]
+tests/test_link_analysis.py::test_website_fetch_failure_is_a_clean_result_not_a_crash PASSED [  6%]
+tests/test_link_analysis.py::test_llm_failure_is_a_clean_result_not_a_crash PASSED [ 10%]
+tests/test_link_analysis.py::test_malformed_llm_schema_is_a_clean_result_not_a_crash PASSED [ 13%]
+tests/test_link_analysis.py::test_route_rejects_empty_url PASSED         [ 16%]
+tests/test_link_analysis.py::test_route_rejects_invalid_scheme PASSED    [ 20%]
+tests/test_link_analysis.py::test_route_rejects_private_address_ssrf PASSED [ 23%]
+tests/test_link_analysis.py::test_route_rejects_cloud_metadata_address_ssrf PASSED [ 26%]
+tests/test_link_analysis.py::test_docs_endpoint_is_available PASSED      [ 30%]
+tests/test_link_analysis.py::test_openapi_schema_is_available PASSED     [ 33%]
+tests/test_llm_service.py::test_successful_structured_response PASSED    [ 36%]
+tests/test_llm_service.py::test_missing_api_key_is_not_configured PASSED [ 40%]
+tests/test_llm_service.py::test_malformed_json_in_response_is_a_real_failure PASSED [ 43%]
+tests/test_llm_service.py::test_empty_candidates_is_a_real_failure PASSED [ 46%]
+tests/test_llm_service.py::test_rate_limited_is_a_real_failure PASSED    [ 50%]
+tests/test_llm_service.py::test_timeout_is_a_real_failure PASSED         [ 53%]
+tests/test_validators.py::test_valid_https_url_passes PASSED             [ 56%]
+tests/test_validators.py::test_empty_url_rejected PASSED                 [ 60%]
+tests/test_validators.py::test_invalid_scheme_rejected PASSED            [ 63%]
+tests/test_validators.py::test_missing_hostname_rejected PASSED          [ 66%]
+tests/test_validators.py::test_loopback_ip_literal_rejected PASSED       [ 70%]
+tests/test_validators.py::test_localhost_hostname_rejected PASSED        [ 73%]
+tests/test_validators.py::test_private_ip_literal_rejected PASSED        [ 76%]
+tests/test_validators.py::test_link_local_ip_literal_rejected PASSED     [ 80%]
+tests/test_validators.py::test_unresolvable_hostname_rejected PASSED     [ 83%]
+tests/test_website_extractor.py::test_extracts_title_meta_and_text PASSED [ 86%]
+tests/test_website_extractor.py::test_http_error_status_is_a_real_failure PASSED [ 90%]
+tests/test_website_extractor.py::test_non_html_content_type_rejected PASSED [ 93%]
+tests/test_website_extractor.py::test_timeout_is_a_real_failure PASSED   [ 96%]
+tests/test_website_extractor.py::test_empty_page_is_a_real_failure PASSED [100%]
+
+============================== warnings summary ===============================
+.venv\Lib\site-packages\starlette\testclient.py:40
+  C:\Users\raiza\OneDrive\Documents\GitHub\Vortiq\.venv\Lib\site-packages\starlette\testclient.py:40: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = typing.Callable[[], typing.ContextManager[anyio.abc.BlockingPortal]]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+================= 30 passed, 1 deselected, 1 warning in 4.53s =================

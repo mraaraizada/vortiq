@@ -1,0 +1,31 @@
+C:\Users\raiza\OneDrive\Documents\GitHub\Vortiq\.venv\Lib\site-packages\pytest_asyncio\plugin.py:207: PytestDeprecationWarning: The configuration option "asyncio_default_fixture_loop_scope" is unset.
+The event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: "function", "class", "module", "package", "session"
+
+  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))
+============================= test session starts =============================
+platform win32 -- Python 3.11.9, pytest-8.3.4, pluggy-1.7.0 -- C:\Users\raiza\OneDrive\Documents\GitHub\Vortiq\.venv\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\raiza\OneDrive\Documents\GitHub\Vortiq
+configfile: pytest.ini
+plugins: anyio-4.16.0, asyncio-0.25.2, respx-0.22.0
+asyncio: mode=Mode.AUTO, asyncio_default_fixture_loop_scope=None
+collecting ... collected 31 items / 30 deselected / 1 selected
+
+tests/test_live.py::test_live_analysis_of_a_real_website 
+--- Live /link-analysis result ---
+{
+  "success": false,
+  "website": "https://httpbin.org",
+  "brand": null,
+  "analysis": null,
+  "error": "LLM request timed out"
+}
+PASSED
+
+============================== warnings summary ===============================
+.venv\Lib\site-packages\starlette\testclient.py:40
+  C:\Users\raiza\OneDrive\Documents\GitHub\Vortiq\.venv\Lib\site-packages\starlette\testclient.py:40: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = typing.Callable[[], typing.ContextManager[anyio.abc.BlockingPortal]]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========== 1 passed, 30 deselected, 1 warning in 61.53s (0:01:01) ============

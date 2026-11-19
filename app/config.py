@@ -13,7 +13,7 @@ load_dotenv()
 @dataclass
 class Settings:
     gemini_api_key: str | None = os.getenv("GEMINI_API_KEY") or None
-    gemini_model: str = os.getenv("GEMINI_MODEL") or "gemini-3.8-flash"
+    gemini_model: str = os.getenv("GEMINI_MODEL") or "gemini-3.5-flash-lite"
 
     request_timeout_seconds: float = float(os.getenv("VORTIQ_REQUEST_TIMEOUT", "15"))
     llm_timeout_seconds: float = float(os.getenv("VORTIQ_LLM_TIMEOUT", "120"))

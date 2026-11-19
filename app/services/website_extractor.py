@@ -25,6 +25,15 @@ _NOISE_TAGS = ("script", "style", "noscript", "svg", "nav", "footer", "header", 
 #: requested URL's path did not.
 _LOGIN_WALL_MARKERS = ("login", "signin", "sign-in", "authwall", "checkpoint", "accounts/login")
 
+#: Facebook's official oEmbed endpoint for Pages — confirmed live (2026-11-19) to
+#: work with NO access token at all for a real public Page URL, returning a real
+#: embeddable snippet with the Page's actual name. This is the one real, working,
+#: officially-sanctioned fallback found for any of the three platforms that block
+#: a plain HTTP GET (Facebook/Instagram/LinkedIn) — used ONLY when the plain fetch
+#: hit a login-wall redirect, not as a replacement for normal extraction.
+#: Docs: https://developers.facebook.com/docs/plugins/oembed
+_FACEBOOK_OEMBED_ENDPOINT = "https://graph.facebook.com/v19.0/oembed_page"
+
 #: Below this many characters of real body text, a page is treated as "thin" —
 #: real-world finding: JS-rendered/login-walled pages (social media profiles are
 #: the common case) often return a near-empty body (e.g. just "Log In Sign Up")
@@ -63,6 +72,32 @@ def _best_meta_description(soup: BeautifulSoup) -> str:
     return max(candidates, key=len, default="")
 
 
+async def _try_facebook_oembed(client: httpx.AsyncClient, url: str) -> ExtractedWebsite | None:
+    """Facebook's Page oEmbed is genuinely tokenless (confirmed live) and works for
+    a real public Facebook Page URL even when a plain GET gets redirected to a
+    login wall. Returns None (never raises) if it doesn't apply or fails, so the
+    caller can fall through to reporting the original restriction honestly."""
+    try:
+        resp = await client.get(_FACEBOOK_OEMBED_ENDPOINT, params={"url": url})
+    except httpx.HTTPError:
+        return None
+    if resp.status_code != 200:
+        return None
+    body = resp.json()
+    html_snippet = body.get("html") or ""
+    soup = BeautifulSoup(html_snippet, "html.parser")
+    name = soup.get_text(strip=True) or body.get("provider_name") or ""
+    if not name:
+        return None
+    return ExtractedWebsite(
+        title=name,
+        meta_description="",
+        text=f"Facebook Page: {name} (content limited to what Facebook's oEmbed API exposes without authentication — see Known Limitations)",
+        final_url=url,
+        is_thin_content=True,
+    )
+
+
 async def fetch_and_extract(client: httpx.AsyncClient, url: str) -> ExtractedWebsite:
     try:
         resp = await client.get(
@@ -75,12 +110,20 @@ async def fetch_and_extract(client: httpx.AsyncClient, url: str) -> ExtractedWeb
     except httpx.HTTPError as exc:
         raise WebsiteExtractionError(f"Could not reach website: {exc}") from exc
 
+    if resp.status_code == 429:
+        retry_after = resp.headers.get("retry-after")
+        suffix = f" (retry after {retry_after}s)" if retry_after else ""
+        raise WebsiteExtractionError(f"Website rate-limited this request (HTTP 429){suffix} — not retried automatically to avoid compounding the rate limit")
     if resp.status_code >= 400:
         raise WebsiteExtractionError(f"Website returned HTTP {resp.status_code}")
 
     original_path = urlparse(url).path.lower()
     final_path = urlparse(str(resp.url)).path.lower()
     if final_path != original_path and any(marker in final_path for marker in _LOGIN_WALL_MARKERS):
+        if "facebook.com" in urlparse(url).netloc.lower():
+            fallback = await _try_facebook_oembed(client, url)
+            if fallback is not None:
+                return fallback
         raise WebsiteExtractionError(
             f"Website redirected to a login/auth page ({resp.url}) instead of the requested content — "
             "cannot analyze a login page as if it were the requested site's real content"

@@ -86,6 +86,9 @@ async def test_redirect_to_login_page_is_a_real_failure_not_mislabeled_success(c
             text="<html><head><title>Facebook - Log In or Sign Up</title></head><body>Connect with friends.</body></html>",
         )
     )
+    # The oEmbed fallback is attempted first for facebook.com; mock it to fail too
+    # so this test exercises the final, correctly-reported failure.
+    respx.get("https://graph.facebook.com/v19.0/oembed_page").mock(return_value=httpx.Response(404))
     with pytest.raises(WebsiteExtractionError, match="login/auth page"):
         await fetch_and_extract(client, target)
 
@@ -109,6 +112,51 @@ async def test_http_error_status_is_a_real_failure(client):
     respx.get(URL).mock(return_value=httpx.Response(404))
     with pytest.raises(WebsiteExtractionError, match="404"):
         await fetch_and_extract(client, URL)
+
+
+@respx.mock
+async def test_rate_limit_reports_retry_after_instead_of_blind_retry(client):
+    # Real finding (instagram.com): a 429 must be reported honestly, including the
+    # real Retry-After value when present, never silently retried (which would
+    # only compound the rate limit).
+    respx.get(URL).mock(return_value=httpx.Response(429, headers={"retry-after": "120"}))
+    with pytest.raises(WebsiteExtractionError, match="retry after 120s"):
+        await fetch_and_extract(client, URL)
+
+
+@respx.mock
+async def test_facebook_login_wall_falls_back_to_real_oembed(client):
+    # Real finding: Facebook's Page oEmbed (graph.facebook.com/v19.0/oembed_page)
+    # is genuinely tokenless and works for a public Page even when the plain GET
+    # gets redirected to a login wall — confirmed live. Used only for facebook.com.
+    target = "https://www.facebook.com/nike"
+    login_url = "https://www.facebook.com/login/?next=https%3A%2F%2Fwww.facebook.com%2Fnike"
+    respx.get(target).mock(return_value=httpx.Response(302, headers={"location": login_url}))
+    respx.get(login_url).mock(
+        return_value=httpx.Response(200, headers={"content-type": "text/html"}, text="<html><body>Log in</body></html>")
+    )
+    respx.get("https://graph.facebook.com/v19.0/oembed_page").mock(
+        return_value=httpx.Response(
+            200,
+            json={"provider_name": "Facebook", "html": '<a href="https://www.facebook.com/nike">Nike</a>'},
+        )
+    )
+    result = await fetch_and_extract(client, target)
+    assert "Nike" in result["text"]
+    assert result["is_thin_content"] is True
+
+
+@respx.mock
+async def test_non_facebook_login_wall_does_not_attempt_facebook_oembed(client):
+    # The oEmbed fallback is facebook.com-specific; a login wall on another site
+    # (e.g. LinkedIn) must still be reported as a real failure, not silently
+    # routed through Facebook's API.
+    target = "https://www.linkedin.com/company/example"
+    login_url = "https://www.linkedin.com/login?session_redirect=example"
+    respx.get(target).mock(return_value=httpx.Response(302, headers={"location": login_url}))
+    respx.get(login_url).mock(return_value=httpx.Response(200, headers={"content-type": "text/html"}, text="<html><body>Sign in</body></html>"))
+    with pytest.raises(WebsiteExtractionError, match="login/auth page"):
+        await fetch_and_extract(client, target)
 
 
 @respx.mock

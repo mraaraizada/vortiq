@@ -159,14 +159,20 @@ Vortiq/
 │   ├── config.py                # Environment-based settings
 │   ├── schemas.py                # Request/response models + input validation
 │   ├── services/
-│   │   ├── website_extractor.py  # Real HTTP fetch + BeautifulSoup cleaning
+│   │   ├── extraction/            # Platform-adapter extraction architecture
+│   │   │   ├── models.py          # Shared ExtractionResult schema
+│   │   │   ├── base_website.py    # Generic HTTPX + Trafilatura/BeautifulSoup extraction
+│   │   │   ├── facebook.py        # Real tokenless oEmbed fallback on login-wall
+│   │   │   ├── instagram.py       # Real tokenless oEmbed for post/reel URLs only
+│   │   │   ├── linkedin.py        # Honest "no tokenless API" explanation
+│   │   │   └── router.py          # The one place "which adapter" is decided
 │   │   ├── llm_service.py        # Gemini API client with schema-enforced JSON output
-│   │   └── analysis_service.py   # Orchestration: fetch -> extract -> LLM -> validate
+│   │   └── analysis_service.py   # Orchestration: extract -> LLM -> validate
 │   └── utils/
 │       └── validators.py         # URL validation + SSRF protection
 ├── tests/
 │   ├── test_validators.py
-│   ├── test_website_extractor.py
+│   ├── test_extraction.py        # Generic + Facebook/Instagram/LinkedIn adapters + router
 │   ├── test_llm_service.py
 │   ├── test_link_analysis.py
 │   └── test_live.py              # Opt-in, real network, excluded from the default run
@@ -182,9 +188,14 @@ Vortiq/
 
 ## Features in Detail
 
-### Website Extraction
+### Platform-Adapter Extraction Architecture
 
-- `app/services/website_extractor.py` fetches the real page (following redirects), rejects non-HTML content types and HTTP error statuses, and strips `<script>`, `<style>`, `<nav>`, `<footer>`, `<header>`, `<form>`, `<iframe>`, and `<svg>` before extracting visible text
+`app/services/extraction/router.py` is the single place "which extraction strategy" is decided, by domain — adding a new platform means adding one new adapter file plus one line in the router, nothing else changes:
+
+- **`base_website.py`** — the default strategy for any URL: a real HTTPX fetch (following redirects), rejecting non-HTML content types and HTTP error statuses, with [Trafilatura](https://trafilatura.readthedocs.io/) extracting the main body text (confirmed live to give cleaner, more article-focused content than a raw BeautifulSoup body dump) and BeautifulSoup providing title/`og:`/`twitter:` metadata and a fallback body-text source
+- **`facebook.py`** — tries the generic strategy first; if Facebook redirects to a login wall, falls back to Facebook's own Page oEmbed endpoint, confirmed live to be genuinely tokenless for a public Page
+- **`instagram.py`** — for post/reel/IGTV URLs, tries Instagram's oEmbed (confirmed live to work tokenlessly for that URL shape only); for profile URLs (which oEmbed doesn't support at all), falls straight through to the generic strategy and reports whatever restriction Instagram applies honestly
+- **`linkedin.py`** — no tokenless fallback exists (LinkedIn's Community Management API requires an approved, registered application); a blocked request gets a clear, specific explanation rather than a generic error or a fake workaround
 - The extracted text is capped (`Settings.max_extracted_chars`, default 12,000 characters) to bound the LLM prompt size — see `docs/llm_research.md` for why this matters for cost
 
 ### SSRF-Protected Input Validation
@@ -207,9 +218,9 @@ Vortiq/
 pytest -q
 ```
 
-30 tests covering:
+46 tests covering:
 - **URL validation & SSRF protection** — valid URL, empty, bad scheme, missing hostname, loopback/private/link-local IP literals, the cloud-metadata address, unresolvable hostnames
-- **Website extraction** (mocked HTTP) — real content cleaning, HTTP error status, non-HTML content type, timeout, empty page
+- **Extraction** (mocked HTTP) — generic content cleaning/thin-content/login-wall detection, Facebook's oEmbed fallback (success and failure), Instagram's post-vs-profile oEmbed scoping, LinkedIn's honest restricted-access explanation, and the router's domain dispatch
 - **LLM service** (mocked HTTP) — successful structured response, missing API key, malformed JSON, empty candidates, rate limiting, timeout
 - **Orchestration** — full pipeline success, website-fetch failure, LLM failure, malformed-schema failure, and the real FastAPI route's validation responses (422s, including SSRF rejections) and Swagger/OpenAPI availability
 

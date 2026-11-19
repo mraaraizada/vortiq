@@ -12,15 +12,16 @@ from pydantic import ValidationError
 
 from app.config import settings
 from app.schemas import Analysis, BrandInfo, LinkAnalysisResponse
+from app.services.extraction.base_website import WebsiteExtractionError
+from app.services.extraction.router import extract
 from app.services.llm_service import LLMServiceError, analyze_with_gemini
-from app.services.website_extractor import WebsiteExtractionError, fetch_and_extract
 
 
 async def analyze_website(url: str) -> LinkAnalysisResponse:
     timeout = httpx.Timeout(settings.request_timeout_seconds)
     async with httpx.AsyncClient(timeout=timeout) as client:
         try:
-            extracted = await fetch_and_extract(client, url)
+            extracted = await extract(client, url)
         except WebsiteExtractionError as exc:
             return LinkAnalysisResponse(success=False, website=url, error=str(exc))
 
@@ -28,10 +29,10 @@ async def analyze_website(url: str) -> LinkAnalysisResponse:
             raw, _usage = await analyze_with_gemini(
                 client,
                 url,
-                extracted["title"],
-                extracted["meta_description"],
-                extracted["text"],
-                is_thin_content=extracted.get("is_thin_content", False),
+                extracted.title,
+                extracted.meta_description,
+                extracted.text,
+                is_thin_content=extracted.is_thin_content,
             )
         except LLMServiceError as exc:
             return LinkAnalysisResponse(success=False, website=url, error=str(exc))
@@ -48,4 +49,4 @@ async def analyze_website(url: str) -> LinkAnalysisResponse:
     except (ValidationError, KeyError, TypeError) as exc:
         return LinkAnalysisResponse(success=False, website=url, error=f"LLM response did not match the expected schema: {exc}")
 
-    return LinkAnalysisResponse(success=True, website=extracted["final_url"], brand=brand, analysis=analysis)
+    return LinkAnalysisResponse(success=True, website=extracted.final_url, brand=brand, analysis=analysis)
